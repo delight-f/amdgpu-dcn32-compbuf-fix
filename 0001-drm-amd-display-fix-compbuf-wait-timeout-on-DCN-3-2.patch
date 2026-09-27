@@ -1,6 +1,6 @@
-From be1e74e983e16d6f7dcd35b18bcc872244eda3ee Mon Sep 17 00:00:00 2001
-From: delight-f <76928118+delight-f@users.noreply.github.com>
-Date: Sun, 27 Sep 2026 10:46:41 +1000
+From 787d24bc01d7c8b8d03946ee7c648c91cc818b16 Mon Sep 17 00:00:00 2001
+From: Faraaz de Belder <faraaz@debelder.com>
+Date: Sun, 27 Sep 2026 10:50:37 +1000
 Subject: [PATCH] drm/amd/display: fix compbuf wait timeout on DCN 3.2
 
 dcn32_program_compbuf_size() polls the DCHUBBUB DET size registers with
@@ -22,7 +22,7 @@ No functional change beyond the corrected timeout.
 
 Link: https://github.com/CachyOS/linux-cachyos/issues/1013
 Link: https://lists.freedesktop.org/archives/amd-gfx/2026-June/146074.html
-Signed-off-by: delight-f <76928118+delight-f@users.noreply.github.com>
+Signed-off-by: Faraaz de Belder <faraaz@debelder.com>
 ---
  .../display/dc/hubbub/dcn32/dcn32_hubbub.c    | 31 ++++++++++++++++---
  1 file changed, 27 insertions(+), 4 deletions(-)

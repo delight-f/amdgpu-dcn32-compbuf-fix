@@ -84,10 +84,11 @@ Expected result: no new occurrences. Before the patch this system logged 11 in
 
 ## Submitting upstream
 
-The patch is formatted with `git format-patch` and is already authored and
-signed off as `delight-f <76928118+delight-f@users.noreply.github.com>`.
+The patch is formatted with `git format-patch` and is authored and signed off as
+`Faraaz de Belder <faraaz@debelder.com>`.
 
-1. Apply it to the current DRM tree (`drm-next` / `amd-staging-drm-next`).
+1. Subscribe to amd-gfx, then apply the patch to the current DRM tree
+   (`drm-next` / `amd-staging-drm-next`).
 2. Send to the amd-gfx list with the DRM maintainers in copy:
    ```sh
    git send-email --to=amd-gfx@lists.freedesktop.org \
