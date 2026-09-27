@@ -1,0 +1,88 @@
+From be1e74e983e16d6f7dcd35b18bcc872244eda3ee Mon Sep 17 00:00:00 2001
+From: delight-f <76928118+delight-f@users.noreply.github.com>
+Date: Sun, 27 Sep 2026 10:46:41 +1000
+Subject: [PATCH] drm/amd/display: fix compbuf wait timeout on DCN 3.2
+
+dcn32_program_compbuf_size() polls the DCHUBBUB DET size registers with
+REG_WAIT(..., 1, 100), a 100us budget, before programming the new
+compressed buffer size. On DCN 3.2 hardware the DET size update can take
+longer than that, so the poll expires and the driver logs:
+
+  amdgpu 0000:2b:00.0: [drm] REG_WAIT timeout 1us * 100 tries - dcn32_program_compbuf_size line:147
+
+The equivalent routine on DCN 3.1 was already corrected by replacing the
+four open-coded REG_WAIT calls with dcn31_wait_for_det_apply() (1000us per
+try, 30 tries, ~30ms), but that change only touched dcn31_hubbub.c and left
+the DCN 3.2 implementation with the original, too-short timeout.
+
+Add dcn32_wait_for_det_apply(), mirroring the DCN 3.1 helper, register it
+in hubbub32_funcs, and use it from dcn32_program_compbuf_size().
+
+No functional change beyond the corrected timeout.
+
+Link: https://github.com/CachyOS/linux-cachyos/issues/1013
+Link: https://lists.freedesktop.org/archives/amd-gfx/2026-June/146074.html
+Signed-off-by: delight-f <76928118+delight-f@users.noreply.github.com>
+---
+ .../display/dc/hubbub/dcn32/dcn32_hubbub.c    | 31 ++++++++++++++++---
+ 1 file changed, 27 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/drm/amd/display/dc/hubbub/dcn32/dcn32_hubbub.c b/drivers/gpu/drm/amd/display/dc/hubbub/dcn32/dcn32_hubbub.c
+index 237331b..78cd0c3 100644
+--- a/drivers/gpu/drm/amd/display/dc/hubbub/dcn32/dcn32_hubbub.c
++++ b/drivers/gpu/drm/amd/display/dc/hubbub/dcn32/dcn32_hubbub.c
+@@ -137,6 +137,28 @@ void dcn32_program_det_size(struct hubbub *hubbub, int hubp_inst, unsigned int d
+ 	}
+ }
+ 
++static void dcn32_wait_for_det_apply(struct hubbub *hubbub, int hubp_inst)
++{
++	struct dcn20_hubbub *hubbub2 = TO_DCN20_HUBBUB(hubbub);
++
++	switch (hubp_inst) {
++	case 0:
++		REG_WAIT(DCHUBBUB_DET0_CTRL, DET0_SIZE_CURRENT, hubbub2->det0_size, 1000, 30);
++		break;
++	case 1:
++		REG_WAIT(DCHUBBUB_DET1_CTRL, DET1_SIZE_CURRENT, hubbub2->det1_size, 1000, 30);
++		break;
++	case 2:
++		REG_WAIT(DCHUBBUB_DET2_CTRL, DET2_SIZE_CURRENT, hubbub2->det2_size, 1000, 30);
++		break;
++	case 3:
++		REG_WAIT(DCHUBBUB_DET3_CTRL, DET3_SIZE_CURRENT, hubbub2->det3_size, 1000, 30);
++		break;
++	default:
++		break;
++	}
++}
++
+ void dcn32_program_compbuf_size(struct hubbub *hubbub, unsigned int compbuf_size_kb, bool safe_to_increase)
+ {
+ 	struct dcn20_hubbub *hubbub2 = TO_DCN20_HUBBUB(hubbub);
+@@ -144,10 +166,10 @@ void dcn32_program_compbuf_size(struct hubbub *hubbub, unsigned int compbuf_size
+ 
+ 	if (safe_to_increase || compbuf_size_segments <= hubbub2->compbuf_size_segments) {
+ 		if (compbuf_size_segments > hubbub2->compbuf_size_segments) {
+-			REG_WAIT(DCHUBBUB_DET0_CTRL, DET0_SIZE_CURRENT, hubbub2->det0_size, 1, 100);
+-			REG_WAIT(DCHUBBUB_DET1_CTRL, DET1_SIZE_CURRENT, hubbub2->det1_size, 1, 100);
+-			REG_WAIT(DCHUBBUB_DET2_CTRL, DET2_SIZE_CURRENT, hubbub2->det2_size, 1, 100);
+-			REG_WAIT(DCHUBBUB_DET3_CTRL, DET3_SIZE_CURRENT, hubbub2->det3_size, 1, 100);
++			dcn32_wait_for_det_apply(hubbub, 0);
++			dcn32_wait_for_det_apply(hubbub, 1);
++			dcn32_wait_for_det_apply(hubbub, 2);
++			dcn32_wait_for_det_apply(hubbub, 3);
+ 		}
+ 		/* Should never be hit, if it is we have an erroneous hw config*/
+ 		ASSERT(hubbub2->det0_size + hubbub2->det1_size + hubbub2->det2_size
+@@ -1031,6 +1053,7 @@ static const struct hubbub_funcs hubbub32_funcs = {
+ 	.force_pstate_change_control = hubbub3_force_pstate_change_control,
+ 	.init_watermarks = hubbub32_init_watermarks,
+ 	.program_det_size = dcn32_program_det_size,
++	.wait_for_det_apply = dcn32_wait_for_det_apply,
+ 	.program_compbuf_size = dcn32_program_compbuf_size,
+ 	.init_crb = dcn32_init_crb,
+ 	.hubbub_read_state = hubbub2_read_state,
+-- 
+2.43.0
+
